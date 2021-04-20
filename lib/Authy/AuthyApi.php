@@ -56,13 +56,12 @@ class AuthyApi
     public function __construct($api_key, $api_url = "https://api.authy.com", $http_handler = null)
     {
         $client_opts = [
-            'base_uri'      => "{$api_url}/",
-            'headers'       => ['User-Agent' => $this->__getUserAgent(), 'X-Authy-API-Key' => $api_key],
-            'http_errors'   => false
+            'base_uri' => "{$api_url}/",
+            'headers' => ['User-Agent' => $this->__getUserAgent(), 'X-Authy-API-Key' => $api_key],
+            'http_errors' => false
         ];
 
-        if($http_handler != null)
-        {
+        if ($http_handler != null) {
             $client_opts['handler'] = $http_handler;
         }
 
@@ -72,30 +71,45 @@ class AuthyApi
         $this->default_options = ['curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4]];
     }
 
+    private function __getUserAgent()
+    {
+        return sprintf(
+            'AuthyPHP/%s (%s-%s-%s; PHP %s)',
+            AuthyApi::VERSION,
+            php_uname('s'),
+            php_uname('r'),
+            php_uname('m'),
+            phpversion()
+        );
+    }
+
     /**
      * Register a user.
      *
-     * @param  string    $email             New user's email
-     * @param  string    $cellphone         New user's cellphone
-     * @param  int       $country_code      New user's country code. defaults to USA(1)
+     * @param string $email New user's email
+     * @param string $cellphone New user's cellphone
+     * @param int $country_code New user's country code. defaults to USA(1)
      * @param  bool      $send_install_link Enable or disable an sms message with a link to download the Authy App
      * @return AuthyUser the new registered user
      */
-    public function registerUser($email, $cellphone, $country_code = 1, $send_install_link = True)
+    public function registerUser($email, $cellphone, $country_code = 1, $send_install_link = true)
     {
-        $resp = $this->rest->post('protected/json/users/new', array_merge(
-            $this->default_options,
-            [
-                'query' => [
-                    'user' => [
-                        "email"                     => $email,
-                        "cellphone"                 => $cellphone,
-                        "country_code"              => $country_code,
-                        "send_install_link_via_sms" => $send_install_link,
+        $resp = $this->rest->post(
+            'protected/json/users/new',
+            array_merge(
+                $this->default_options,
+                [
+                    'query' => [
+                        'user' => [
+                            "email" => $email,
+                            "cellphone" => $cellphone,
+                            "country_code" => $country_code,
+                            "send_install_link_via_sms" => $send_install_link,
+                        ]
                     ]
                 ]
-            ]
-        ));
+            )
+        );
 
         return new AuthyUser($resp);
     }
@@ -104,15 +118,15 @@ class AuthyApi
      * Verify a given token.
      *
      * @param string $authy_id User's id stored in your database
-     * @param int    $token The token entered by the user
-     * @param array  $opts Array of options, for example: ["force" => "true"]
+     * @param string $token The token entered by the user
+     * @param array $opts Array of options, for example: array("force" => "true")
      *
      * @return AuthyResponse the server response
      * @throws AuthyFormatException|GuzzleException
      */
     public function verifyToken($authy_id, $token, $opts = [])
     {
-        if (! array_key_exists("force", $opts)) {
+        if (!array_key_exists("force", $opts)) {
             $opts["force"] = "true";
         } else {
             unset($opts["force"]);
@@ -122,12 +136,32 @@ class AuthyApi
         $authy_id = urlencode($authy_id);
         $this->__validateVerify($token, $authy_id);
 
-        $resp = $this->rest->get("protected/json/verify/{$token}/{$authy_id}", array_merge(
-            $this->default_options,
-            ['query' => $opts]
-        ));
+        $resp = $this->rest->get(
+            "protected/json/verify/{$token}/{$authy_id}",
+            array_merge(
+                $this->default_options,
+                ['query' => $opts]
+            )
+        );
 
         return new AuthyToken($resp);
+    }
+
+    private function __validateVerify($token, $authy_id)
+    {
+        $this->__validate_digit($token, "Invalid Token. Only digits accepted.");
+        $this->__validate_digit($authy_id, "Invalid Authy id. Only digits accepted.");
+        $length = strlen((string)$token);
+        if ($length < 6 or $length > 10) {
+            throw new AuthyFormatException("Invalid Token. Unexpected length.");
+        }
+    }
+
+    private function __validate_digit($var, $message)
+    {
+        if (!is_int($var) && !is_numeric($var)) {
+            throw new AuthyFormatException($message);
+        }
     }
 
     /**
@@ -143,10 +177,13 @@ class AuthyApi
     {
         $authy_id = urlencode($authy_id);
 
-        $resp = $this->rest->get("protected/json/sms/{$authy_id}", array_merge(
-            $this->default_options,
-            ['query' => $opts]
-        ));
+        $resp = $this->rest->get(
+            "protected/json/sms/{$authy_id}",
+            array_merge(
+                $this->default_options,
+                ['query' => $opts]
+            )
+        );
 
         return new AuthyResponse($resp);
     }
@@ -164,10 +201,13 @@ class AuthyApi
     public function phoneCall($authy_id, $opts = [])
     {
         $authy_id = urlencode($authy_id);
-        $resp = $this->rest->get("protected/json/call/{$authy_id}", array_merge(
-            $this->default_options,
-            ['query' => $opts]
-        ));
+        $resp = $this->rest->get(
+            "protected/json/call/{$authy_id}",
+            array_merge(
+                $this->default_options,
+                ['query' => $opts]
+            )
+        );
 
         return new AuthyResponse($resp);
     }
@@ -214,10 +254,13 @@ class AuthyApi
     public function qrCode($authy_id, $opts = [])
     {
         $authy_id = urlencode($authy_id);
-        $resp = $this->rest->post("protected/json/users/{$authy_id}/secret", array_merge(
-            $this->default_options,
-            ['query' => $opts]
-        ));
+        $resp = $this->rest->post(
+            "protected/json/users/{$authy_id}/secret",
+            array_merge(
+                $this->default_options,
+                ['query' => $opts]
+            )
+        );
 
         return new AuthyResponse($resp);
     }
@@ -234,26 +277,31 @@ class AuthyApi
      * @return AuthyResponse the server response
      * @throws GuzzleException
      */
-    public function phoneVerificationStart($phone_number, $country_code,
-                                           $via='sms', $code_length=4,
-                                           $locale=null)
-    {
-
+    public function phoneVerificationStart(
+        $phone_number,
+        $country_code,
+        $via = 'sms',
+        $code_length = 4,
+        $locale = null
+    ) {
         $query = [
             "phone_number" => $phone_number,
             "country_code" => $country_code,
-            "via"          => $via,
-            "code_length"  => $code_length
+            "via" => $via,
+            "code_length" => $code_length
         ];
 
         if ($locale != null) {
             $query["locale"] = $locale;
         }
 
-        $resp = $this->rest->post("protected/json/phones/verification/start", array_merge(
-            $this->default_options,
-            ['query' => $query]
-        ));
+        $resp = $this->rest->post(
+            "protected/json/phones/verification/start",
+            array_merge(
+                $this->default_options,
+                ['query' => $query]
+            )
+        );
 
         return new AuthyResponse($resp);
     }
@@ -270,16 +318,19 @@ class AuthyApi
      */
     public function phoneVerificationCheck($phone_number, $country_code, $verification_code)
     {
-        $resp = $this->rest->get("protected/json/phones/verification/check", array_merge(
-            $this->default_options,
-            [
-                'query' => [
-                    "phone_number"      => $phone_number,
-                    "country_code"      => $country_code,
-                    "verification_code" => $verification_code
+        $resp = $this->rest->get(
+            "protected/json/phones/verification/check",
+            array_merge(
+                $this->default_options,
+                [
+                    'query' => [
+                        "phone_number" => $phone_number,
+                        "country_code" => $country_code,
+                        "verification_code" => $verification_code
+                    ]
                 ]
-            ]
-        ));
+            )
+        );
 
         return new AuthyResponse($resp);
     }
@@ -295,15 +346,18 @@ class AuthyApi
      */
     public function phoneInfo($phone_number, $country_code)
     {
-        $resp = $this->rest->get("protected/json/phones/info", array_merge(
-            $this->default_options,
-            [
-                'query' => [
-                    "phone_number" => $phone_number,
-                    "country_code" => $country_code
+        $resp = $this->rest->get(
+            "protected/json/phones/info",
+            array_merge(
+                $this->default_options,
+                [
+                    'query' => [
+                        "phone_number" => $phone_number,
+                        "country_code" => $country_code
+                    ]
                 ]
-            ]
-        ));
+            )
+        );
 
         return new AuthyResponse($resp);
     }
@@ -323,12 +377,15 @@ class AuthyApi
     public function createApprovalRequest($authy_id, $message, $opts = [])
     {
         $opts['message'] = $message;
-        
+
         $authy_id = urlencode($authy_id);
-        $resp = $this->rest->post("onetouch/json/users/{$authy_id}/approval_requests", array_merge(
-            $this->default_options,
-            ['query' => $opts]
-        ));
+        $resp = $this->rest->post(
+            "onetouch/json/users/{$authy_id}/approval_requests",
+            array_merge(
+                $this->default_options,
+                ['query' => $opts]
+            )
+        );
 
         return new AuthyResponse($resp);
     }
@@ -392,6 +449,5 @@ class AuthyApi
             throw new AuthyFormatException($message);
         }
     }
-
 
 }
